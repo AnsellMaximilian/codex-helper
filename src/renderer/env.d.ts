@@ -4,6 +4,7 @@ declare global {
   const api: AppAPI;
   interface Window {
     api: AppAPI;
+    showDirectoryPicker?: () => Promise<FileSystemDirectoryHandle>;
   }
 }
 export {};

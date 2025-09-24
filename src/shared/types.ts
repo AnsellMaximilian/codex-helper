@@ -4,4 +4,7 @@ export type AppAPI = {
     chrome: string;
     electron: string;
   };
+  files: {
+    pickFolder: () => Promise<string | null>;
+  };
 };
