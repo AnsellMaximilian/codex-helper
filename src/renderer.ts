@@ -27,4 +27,4 @@
  */
 
 import "./index.css";
-import "./renderer/App";
+import "./renderer/main";
