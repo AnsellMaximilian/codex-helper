@@ -14,11 +14,11 @@ export function makeChannels<T extends readonly string[]>(
 
 // Example usage
 export const CHANNELS = {
-  PROJECT: makeChannels("files", [
+  PROJECT: makeChannels("projects", [
     "PICK_FOLDER",
     "READ_FILE",
     "WRITE_FILE",
-    "GET_PROJECT_FOLDER",
+    "ADD_WORKSPACE",
   ] as const),
   AUTH: makeChannels("auth", ["LOGIN", "LOGOUT", "ME"] as const),
 } as const;

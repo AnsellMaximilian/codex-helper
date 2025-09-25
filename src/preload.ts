@@ -11,8 +11,8 @@ const api: AppAPI = {
     chrome: process.versions.chrome,
     electron: process.versions.electron,
   },
-  files: {
-    pickFolder: () => ipcRenderer.invoke(CHANNELS.PROJECT.PICK_FOLDER),
+  projects: {
+    addWorkspace: () => ipcRenderer.invoke(CHANNELS.PROJECT.ADD_WORKSPACE),
   },
 };
 

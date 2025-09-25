@@ -11,10 +11,7 @@ export default function projectFeatuerHandlers() {
 
     return res.filePaths[0];
   });
-  ipcMain.handle(
-    CHANNELS.PROJECT.GET_PROJECT_FOLDER,
-    async (_e, dir: string) => {
-      return extractAndroidBasePackage(dir);
-    }
-  );
+  ipcMain.handle(CHANNELS.PROJECT.ADD_WORKSPACE, async () => {
+    return extractAndroidBasePackage();
+  });
 }

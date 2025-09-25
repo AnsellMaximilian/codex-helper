@@ -1,14 +1,8 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
+import { dialog } from "electron";
 
-export type BasePackageResult = {
-  dirScanned: string;
-  moduleDir: string | null;
-  packageName: string | null;
-  source: "applicationId" | "namespace" | "manifest" | "none";
-  filesChecked: string[];
-  warnings: string[];
-};
+import type { BasePackageResult, ProjectSelectionResult } from "./types";
 
 const IGNORE_DIRS = new Set([
   ".git",
@@ -132,7 +126,16 @@ async function findCandidateModules(root: string): Promise<string[]> {
   return [...new Set(candidates)];
 }
 
-export async function extractAndroidBasePackage(
+async function pickProjectDirectory(): Promise<string | null> {
+  const res = await dialog.showOpenDialog({
+    properties: ["openDirectory", "createDirectory"],
+  });
+  if (res.canceled || res.filePaths.length === 0) return null;
+
+  return res.filePaths[0];
+}
+
+async function extractFromDirectory(
   projectDir: string
 ): Promise<BasePackageResult> {
   const filesChecked: string[] = [];
@@ -194,4 +197,13 @@ export async function extractAndroidBasePackage(
     filesChecked,
     warnings,
   };
+}
+
+export async function extractAndroidBasePackage(
+  projectDir?: string
+): Promise<ProjectSelectionResult> {
+  const resolvedDir = projectDir ?? (await pickProjectDirectory());
+  if (!resolvedDir) return null;
+
+  return extractFromDirectory(resolvedDir);
 }
