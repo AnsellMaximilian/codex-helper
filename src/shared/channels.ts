@@ -19,6 +19,8 @@ export const CHANNELS = {
     "WRITE_FILE",
     "ADD_WORKSPACE",
     "CHECK_TEMPLATES",
+    "SYNC_TEMPLATES",
+    "TEMPLATE_SYNC_PROGRESS",
   ] as const),
   AUTH: makeChannels("auth", ["LOGIN", "LOGOUT", "ME"] as const),
 } as const;

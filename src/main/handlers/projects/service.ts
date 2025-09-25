@@ -1,12 +1,16 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
-import { createHash } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import { app, dialog } from "electron";
 
 import type {
   BasePackageResult,
   Project,
   TemplateCheckMap,
+  TemplateSyncMode,
+  TemplateSyncProgress,
+  TemplateSyncRequest,
+  TemplateSyncResult,
 } from "./types";
 
 const IGNORE_DIRS = new Set([
@@ -275,17 +279,48 @@ async function collectTemplateFiles(
   }
 }
 
+let templateRootPromise: Promise<string | null> | null = null;
 let templatePathsPromise: Promise<string[]> | null = null;
+
+async function getTemplateRoot(): Promise<string | null> {
+  if (!templateRootPromise) {
+    templateRootPromise = resolveTemplateRoot();
+  }
+  return templateRootPromise;
+}
 
 async function getTemplatePaths(): Promise<string[]> {
   if (!templatePathsPromise) {
     templatePathsPromise = (async () => {
-      const root = await resolveTemplateRoot();
+      const root = await getTemplateRoot();
       if (!root) return [];
       return collectTemplateFiles(root, root);
     })();
   }
   return templatePathsPromise;
+}
+
+async function copyTemplateFile(
+  templateRoot: string,
+  projectDir: string,
+  relativePath: string,
+  overwrite: boolean
+): Promise<"copied" | "skipped" | "missing-source"> {
+  const segments = relativePath.split("/");
+  const source = path.join(templateRoot, ...segments);
+  if (!(await exists(source))) {
+    return "missing-source";
+  }
+
+  const target = path.join(projectDir, ...segments);
+  await fs.mkdir(path.dirname(target), { recursive: true });
+
+  if (!overwrite && (await exists(target))) {
+    return "skipped";
+  }
+
+  await fs.copyFile(source, target);
+  return "copied";
 }
 
 export async function checkProjectTemplates(
@@ -306,6 +341,121 @@ export async function checkProjectTemplates(
   }
 
   return result;
+}
+
+export async function syncTemplates(
+  request: TemplateSyncRequest,
+  notify: (progress: TemplateSyncProgress) => void
+): Promise<TemplateSyncResult> {
+  const { projectDir, mode = "missing", files } = request;
+  const templateRoot = await getTemplateRoot();
+  if (!templateRoot) {
+    throw new Error("Template assets directory could not be located.");
+  }
+
+  const templatePaths = await getTemplatePaths();
+  const normalizedMode: TemplateSyncMode = mode;
+  let selectedPaths: string[] = [];
+
+  if (normalizedMode === "all") {
+    selectedPaths = [...templatePaths];
+  } else if (normalizedMode === "missing") {
+    for (const rel of templatePaths) {
+      const target = path.join(projectDir, ...rel.split("/"));
+      // eslint-disable-next-line no-await-in-loop
+      if (!(await exists(target))) {
+        selectedPaths.push(rel);
+      }
+    }
+  } else if (normalizedMode === "single") {
+    const requested = Array.isArray(files) ? files : [];
+    if (requested.length === 0) {
+      throw new Error("No template files provided for synchronization.");
+    }
+    const templateSet = new Set(templatePaths);
+    selectedPaths = requested.filter((rel) => templateSet.has(rel));
+    if (selectedPaths.length === 0) {
+      throw new Error("Requested template files do not exist in the template directory.");
+    }
+  } else {
+    throw new Error(`Unsupported template sync mode: ${normalizedMode}`);
+  }
+
+  selectedPaths = [...new Set(selectedPaths)];
+
+  const overwrite = normalizedMode !== "missing";
+  const runId = randomUUID();
+  let copiedCount = 0;
+
+  for (const rel of selectedPaths) {
+    notify({
+      projectDir,
+      runId,
+      mode: normalizedMode,
+      relativePath: rel,
+      state: "start",
+    });
+
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const result = await copyTemplateFile(templateRoot, projectDir, rel, overwrite);
+      if (result === "copied") {
+        copiedCount += 1;
+        notify({
+          projectDir,
+          runId,
+          mode: normalizedMode,
+          relativePath: rel,
+          state: "success",
+        });
+      } else if (result === "skipped") {
+        notify({
+          projectDir,
+          runId,
+          mode: normalizedMode,
+          relativePath: rel,
+          state: "skipped",
+        });
+      } else {
+        notify({
+          projectDir,
+          runId,
+          mode: normalizedMode,
+          relativePath: rel,
+          state: "error",
+          error: "Template source file not found.",
+        });
+      }
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error ?? "Unknown error");
+      notify({
+        projectDir,
+        runId,
+        mode: normalizedMode,
+        relativePath: rel,
+        state: "error",
+        error: message,
+      });
+    }
+  }
+
+  const status = await checkProjectTemplates(projectDir);
+
+  notify({
+    projectDir,
+    runId,
+    mode: normalizedMode,
+    relativePath: null,
+    state: "complete",
+    copiedCount,
+    totalCount: selectedPaths.length,
+  });
+
+  return {
+    runId,
+    status,
+  };
 }
 
 export async function selectWorkspace(

@@ -1,6 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate, useOutletContext, useParams } from "react-router-dom";
-import type { TemplateCheckMap } from "../../shared/types";
+import type {
+  TemplateCheckMap,
+  TemplateSyncMode,
+  TemplateSyncProgress,
+} from "../../shared/types";
 import type { ProjectsOutletContext } from "../components/layout/MainLayout";
 import { Button } from "../components/ui/button";
 import {
@@ -20,6 +24,8 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "../components/ui/sheet";
+
+const DEFAULT_TEMPLATE_ERROR = "Unable to synchronize template file.";
 
 function decodeProjectId(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -44,6 +50,10 @@ export default function ProjectDetailsPage() {
   const [isCheckingTemplates, setIsCheckingTemplates] = useState(false);
   const [isTemplateSheetOpen, setIsTemplateSheetOpen] = useState(false);
   const [templateQuery, setTemplateQuery] = useState("");
+  const [isSyncingMissing, setIsSyncingMissing] = useState(false);
+  const [isSyncingAll, setIsSyncingAll] = useState(false);
+  const [fileSyncing, setFileSyncing] = useState<Record<string, boolean>>({});
+  const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
 
   const decodedId = useMemo(() => decodeProjectId(params.projectId), [params]);
 
@@ -51,6 +61,8 @@ export default function ProjectDetailsPage() {
     if (!decodedId) return undefined;
     return projects.find((item) => item.id === decodedId);
   }, [decodedId, projects]);
+
+  const projectRoot = project?.rootDir;
 
   const runTemplateCheck = useCallback(async () => {
     if (!project) return;
@@ -75,6 +87,126 @@ export default function ProjectDetailsPage() {
       setTemplateQuery("");
     }
   }, [isTemplateSheetOpen]);
+
+  useEffect(() => {
+    if (!projectRoot) return undefined;
+    const unsubscribe = api.projects.onTemplateSyncProgress(
+      (progress: TemplateSyncProgress) => {
+        if (progress.projectDir !== projectRoot) return;
+        const relativePath = progress.relativePath ?? undefined;
+
+        if (relativePath && progress.state === "success") {
+          setTemplateStatus((prev) => {
+            if (!prev) return prev;
+            if (prev[relativePath]) return prev;
+            return { ...prev, [relativePath]: true };
+          });
+          setFileErrors((prev) => {
+            if (!(relativePath in prev)) return prev;
+            const { [relativePath]: _removed, ...rest } = prev;
+            void _removed;
+            return rest;
+          });
+          setFileSyncing((prev) => {
+            if (!(relativePath in prev)) return prev;
+            const next = { ...prev };
+            delete next[relativePath];
+            return next;
+          });
+        } else if (relativePath && progress.state === "skipped") {
+          setTemplateStatus((prev) => {
+            if (!prev) return prev;
+            if (prev[relativePath]) return prev;
+            return { ...prev, [relativePath]: true };
+          });
+          setFileSyncing((prev) => {
+            if (!(relativePath in prev)) return prev;
+            const next = { ...prev };
+            delete next[relativePath];
+            return next;
+          });
+        } else if (relativePath && progress.state === "error") {
+          setFileErrors((prev) => ({
+            ...prev,
+            [relativePath]: progress.error ?? DEFAULT_TEMPLATE_ERROR,
+          }));
+          setFileSyncing((prev) => {
+            if (!(relativePath in prev)) return prev;
+            const next = { ...prev };
+            delete next[relativePath];
+            return next;
+          });
+        }
+      }
+    );
+
+    return () => {
+      unsubscribe();
+    };
+  }, [projectRoot]);
+
+  const syncTemplates = useCallback(
+    async (mode: TemplateSyncMode, files?: string[]) => {
+      if (!project) return;
+      if (mode === "missing") {
+        setIsSyncingMissing(true);
+      } else if (mode === "all") {
+        setIsSyncingAll(true);
+      } else if (mode === "single" && Array.isArray(files)) {
+        setFileSyncing((prev) => {
+          const next = { ...prev };
+          for (const file of files) {
+            next[file] = true;
+          }
+          return next;
+        });
+        setFileErrors((prev) => {
+          const next = { ...prev };
+          for (const file of files) {
+            delete next[file];
+          }
+          return next;
+        });
+      }
+
+      try {
+        const result = await api.projects.syncTemplates({
+          projectDir: project.rootDir,
+          mode,
+          files,
+        });
+        setTemplateStatus(result.status);
+      } catch (error) {
+        console.error("Template synchronization failed", error);
+        if (mode === "single" && Array.isArray(files) && files.length > 0) {
+          const message =
+            error instanceof Error ? error.message : String(error ?? "Error");
+          setFileErrors((prev) => {
+            const next = { ...prev };
+            for (const file of files) {
+              next[file] = message;
+            }
+            return next;
+          });
+        }
+      } finally {
+        if (mode === "missing") {
+          setIsSyncingMissing(false);
+        } else if (mode === "all") {
+          setIsSyncingAll(false);
+        } else if (mode === "single" && Array.isArray(files)) {
+          setFileSyncing((prev) => {
+            const next = { ...prev };
+            for (const file of files) {
+              delete next[file];
+            }
+            return next;
+          });
+        }
+      }
+    },
+    [project]
+  );
 
   if (!project) {
     return (
@@ -116,6 +248,16 @@ export default function ProjectDetailsPage() {
   const totalTemplates = templateEntries.length;
   const totalPresent = templateEntries.filter((entry) => entry.exists).length;
   const totalMissing = totalTemplates - totalPresent;
+  const hasMissingTemplates = templateEntries.some((entry) => !entry.exists);
+
+  const templateDataUnavailable =
+    templateStatus === null || isCheckingTemplates;
+  const disableMissingButton =
+    templateDataUnavailable ||
+    !hasMissingTemplates ||
+    isSyncingMissing ||
+    isSyncingAll;
+  const disableAllButton = templateDataUnavailable || isSyncingAll;
 
   return (
     <div className="space-y-6">
@@ -182,13 +324,30 @@ export default function ProjectDetailsPage() {
             Missing: {templateStatus === null ? "-" : totalMissing}
           </p>
         </CardContent>
-        <CardFooter>
+        <CardFooter className="flex flex-wrap gap-2">
+          <Button
+            onClick={() => syncTemplates("missing")}
+            disabled={disableMissingButton}
+          >
+            {isSyncingMissing
+              ? "Adding missing templates..."
+              : "Add missing templates"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => syncTemplates("all")}
+            disabled={disableAllButton}
+          >
+            {isSyncingAll
+              ? "Overwriting templates..."
+              : "Add all templates (overwrite)"}
+          </Button>
           <Sheet
             open={isTemplateSheetOpen}
             onOpenChange={setIsTemplateSheetOpen}
           >
             <SheetTrigger asChild>
-              <Button disabled={templateStatus === null}>
+              <Button variant="outline" disabled={templateStatus === null}>
                 View template files
               </Button>
             </SheetTrigger>
@@ -222,25 +381,57 @@ export default function ProjectDetailsPage() {
                     </p>
                   ) : (
                     <ul className="space-y-2">
-                      {filteredTemplateEntries.map((entry) => (
-                        <li
-                          key={entry.relativePath}
-                          className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
-                        >
-                          <span className="truncate text-muted-foreground">
-                            {formatPath(entry.displayPath)}
-                          </span>
-                          <span
-                            className={
-                              entry.exists
-                                ? "text-emerald-600"
-                                : "text-destructive"
-                            }
+                      {filteredTemplateEntries.map((entry) => {
+                        const isFileSyncing = !!fileSyncing[entry.relativePath];
+                        const errorMessage = fileErrors[entry.relativePath];
+                        const disableFileAction =
+                          isFileSyncing ||
+                          isSyncingAll ||
+                          isSyncingMissing ||
+                          isCheckingTemplates;
+                        return (
+                          <li
+                            key={entry.relativePath}
+                            className="flex items-center justify-between gap-3 rounded-md border border-border px-3 py-2 text-sm"
                           >
-                            {entry.exists ? "Present" : "Missing"}
-                          </span>
-                        </li>
-                      ))}
+                            <div className="min-w-0 flex-1">
+                              <span className="truncate text-muted-foreground">
+                                {formatPath(entry.displayPath)}
+                              </span>
+                              {errorMessage ? (
+                                <p className="text-xs text-destructive">
+                                  {errorMessage}
+                                </p>
+                              ) : null}
+                            </div>
+                            <div className="flex items-center gap-2 text-xs font-medium">
+                              <span
+                                className={
+                                  entry.exists
+                                    ? "text-emerald-600"
+                                    : "text-destructive"
+                                }
+                              >
+                                {entry.exists ? "Present" : "Missing"}
+                              </span>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={() =>
+                                  syncTemplates("single", [entry.relativePath])
+                                }
+                                disabled={disableFileAction}
+                              >
+                                {isFileSyncing
+                                  ? "Adding..."
+                                  : entry.exists
+                                    ? "Overwrite"
+                                    : "Add"}
+                              </Button>
+                            </div>
+                          </li>
+                        );
+                      })}
                     </ul>
                   )}
                 </div>

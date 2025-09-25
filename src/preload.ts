@@ -3,6 +3,10 @@
 
 import { contextBridge, ipcRenderer } from "electron";
 import { AppAPI } from "./shared/types";
+import type {
+  TemplateSyncProgress,
+  TemplateSyncRequest,
+} from "./shared/types";
 import { CHANNELS } from "./shared/channels";
 
 const api: AppAPI = {
@@ -15,6 +19,23 @@ const api: AppAPI = {
     addWorkspace: () => ipcRenderer.invoke(CHANNELS.PROJECT.ADD_WORKSPACE),
     checkTemplates: (projectDir: string) =>
       ipcRenderer.invoke(CHANNELS.PROJECT.CHECK_TEMPLATES, projectDir),
+    syncTemplates: (request: TemplateSyncRequest) =>
+      ipcRenderer.invoke(CHANNELS.PROJECT.SYNC_TEMPLATES, request),
+    onTemplateSyncProgress: (callback) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        payload: unknown
+      ) => {
+        callback(payload as TemplateSyncProgress);
+      };
+      ipcRenderer.on(CHANNELS.PROJECT.TEMPLATE_SYNC_PROGRESS, listener);
+      return () => {
+        ipcRenderer.removeListener(
+          CHANNELS.PROJECT.TEMPLATE_SYNC_PROGRESS,
+          listener
+        );
+      };
+    },
   },
 };
 

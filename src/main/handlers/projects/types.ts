@@ -25,3 +25,34 @@ export type Project = {
 };
 
 export type TemplateCheckMap = Record<string, boolean>;
+
+export type TemplateSyncMode = "missing" | "all" | "single";
+
+export type TemplateSyncRequest = {
+  projectDir: string;
+  mode: TemplateSyncMode;
+  files?: string[];
+};
+
+export type TemplateSyncProgressState =
+  | "start"
+  | "success"
+  | "skipped"
+  | "error"
+  | "complete";
+
+export type TemplateSyncProgress = {
+  projectDir: string;
+  runId: string;
+  mode: TemplateSyncMode;
+  relativePath: string | null;
+  state: TemplateSyncProgressState;
+  error?: string;
+  copiedCount?: number;
+  totalCount?: number;
+};
+
+export type TemplateSyncResult = {
+  runId: string;
+  status: TemplateCheckMap;
+};
