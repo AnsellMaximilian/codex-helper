@@ -1,15 +1,7 @@
-import { dialog, ipcMain } from "electron";
-import { CHANNELS } from "../../shared/channels";
+import projectFeatuerHandlers from "./projects/handlers";
 
 const initHandlers = () => {
-  ipcMain.handle(CHANNELS.FILES.PICK_FOLDER, async () => {
-    const res = await dialog.showOpenDialog({
-      properties: ["openDirectory", "createDirectory"],
-    });
-    if (res.canceled) return null;
-
-    return res.filePaths[0];
-  });
+  projectFeatuerHandlers();
 };
 
 export default initHandlers;

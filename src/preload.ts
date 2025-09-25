@@ -12,7 +12,7 @@ const api: AppAPI = {
     electron: process.versions.electron,
   },
   files: {
-    pickFolder: () => ipcRenderer.invoke(CHANNELS.FILES.PICK_FOLDER),
+    pickFolder: () => ipcRenderer.invoke(CHANNELS.PROJECT.PICK_FOLDER),
   },
 };
 

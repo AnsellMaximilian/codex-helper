@@ -14,15 +14,16 @@ export function makeChannels<T extends readonly string[]>(
 
 // Example usage
 export const CHANNELS = {
-  FILES: makeChannels("files", [
+  PROJECT: makeChannels("files", [
     "PICK_FOLDER",
     "READ_FILE",
     "WRITE_FILE",
+    "GET_PROJECT_FOLDER",
   ] as const),
   AUTH: makeChannels("auth", ["LOGIN", "LOGOUT", "ME"] as const),
 } as const;
 
 // Types
 export type Channel =
-  | (typeof CHANNELS.FILES)[keyof typeof CHANNELS.FILES]
+  | (typeof CHANNELS.PROJECT)[keyof typeof CHANNELS.PROJECT]
   | (typeof CHANNELS.AUTH)[keyof typeof CHANNELS.AUTH];
