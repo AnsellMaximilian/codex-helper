@@ -1,8 +1,13 @@
 import path from "node:path";
 import { promises as fs } from "node:fs";
-import { dialog } from "electron";
+import { createHash } from "node:crypto";
+import { app, dialog } from "electron";
 
-import type { BasePackageResult, ProjectSelectionResult } from "./types";
+import type {
+  BasePackageResult,
+  Project,
+  TemplateCheckMap,
+} from "./types";
 
 const IGNORE_DIRS = new Set([
   ".git",
@@ -199,11 +204,117 @@ async function extractFromDirectory(
   };
 }
 
-export async function extractAndroidBasePackage(
+function normalizeDir(dir: string): string {
+  return dir.replace(/[\\/]+$/, "");
+}
+
+function deriveProjectName(dir: string): string {
+  const trimmed = normalizeDir(dir);
+  const base = path.basename(trimmed);
+  return base || trimmed;
+}
+
+function buildProject(base: BasePackageResult): Project {
+  const id = createHash("sha1").update(base.dirScanned).digest("hex");
+  return {
+    id,
+    name: deriveProjectName(base.dirScanned),
+    rootDir: base.dirScanned,
+    moduleDir: base.moduleDir,
+    packageName: base.packageName,
+    packageSource: base.source,
+    warnings: base.warnings,
+    filesChecked: base.filesChecked,
+  };
+}
+
+async function resolveTemplateRoot(): Promise<string | null> {
+  const candidates = new Set<string>();
+  if (typeof app.getAppPath === "function") {
+    try {
+      const appPath = app.getAppPath();
+      candidates.add(
+        path.join(appPath, "src", "shared", "assets", "templates")
+      );
+      candidates.add(path.join(appPath, "shared", "assets", "templates"));
+    } catch {
+      // Ignore failures and fall back to cwd checks
+    }
+  }
+  candidates.add(
+    path.join(process.cwd(), "src", "shared", "assets", "templates")
+  );
+
+  for (const candidate of candidates) {
+    if (await exists(candidate)) {
+      return candidate;
+    }
+  }
+  return null;
+}
+
+async function collectTemplateFiles(
+  dir: string,
+  baseDir: string
+): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(dir, { withFileTypes: true });
+    const files: string[] = [];
+    for (const entry of entries) {
+      const abs = path.join(dir, entry.name);
+      if (entry.isDirectory()) {
+        files.push(...(await collectTemplateFiles(abs, baseDir)));
+      } else if (entry.isFile()) {
+        const rel = path.relative(baseDir, abs).replace(/\\/g, "/");
+        files.push(rel);
+      }
+    }
+    return files;
+  } catch {
+    return [];
+  }
+}
+
+let templatePathsPromise: Promise<string[]> | null = null;
+
+async function getTemplatePaths(): Promise<string[]> {
+  if (!templatePathsPromise) {
+    templatePathsPromise = (async () => {
+      const root = await resolveTemplateRoot();
+      if (!root) return [];
+      return collectTemplateFiles(root, root);
+    })();
+  }
+  return templatePathsPromise;
+}
+
+export async function checkProjectTemplates(
+  projectDir: string
+): Promise<TemplateCheckMap> {
+  const templatePaths = await getTemplatePaths();
+  if (templatePaths.length === 0) {
+    return {};
+  }
+
+  const labelRoot = "shared/assets/templates";
+  const result: TemplateCheckMap = {};
+
+  for (const rel of templatePaths) {
+    const key = path.posix.join(labelRoot, rel);
+    const target = path.join(projectDir, ...rel.split("/"));
+    // eslint-disable-next-line no-await-in-loop
+    result[key] = await exists(target);
+  }
+
+  return result;
+}
+
+export async function selectWorkspace(
   projectDir?: string
-): Promise<ProjectSelectionResult> {
+): Promise<Project | null> {
   const resolvedDir = projectDir ?? (await pickProjectDirectory());
   if (!resolvedDir) return null;
 
-  return extractFromDirectory(resolvedDir);
+  const base = await extractFromDirectory(resolvedDir);
+  return buildProject(base);
 }

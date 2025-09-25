@@ -13,6 +13,8 @@ const api: AppAPI = {
   },
   projects: {
     addWorkspace: () => ipcRenderer.invoke(CHANNELS.PROJECT.ADD_WORKSPACE),
+    checkTemplates: (projectDir: string) =>
+      ipcRenderer.invoke(CHANNELS.PROJECT.CHECK_TEMPLATES, projectDir),
   },
 };
 

@@ -1,5 +1,6 @@
 import { createRoot } from "react-dom/client";
 import App from "./App";
+import ProjectDetailsPage from "./pages/ProjectDetailsPage";
 import { RouterProvider, createBrowserRouter } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 import loader from "./lib/loader";
@@ -15,6 +16,10 @@ const router = createBrowserRouter([
       {
         index: true,
         element: <App />,
+      },
+      {
+        path: "projects/:projectId",
+        element: <ProjectDetailsPage />,
       },
     ],
   },

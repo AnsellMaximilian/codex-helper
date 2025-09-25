@@ -1,11 +1,12 @@
 export type {
   BasePackageResult,
-  ProjectSelectionResult,
+  Project,
+  TemplateCheckMap,
 } from "../main/handlers/projects/types";
 
 import type {
-  BasePackageResult,
-  ProjectSelectionResult,
+  Project,
+  TemplateCheckMap,
 } from "../main/handlers/projects/types";
 
 export type AppAPI = {
@@ -15,6 +16,7 @@ export type AppAPI = {
     electron: string;
   };
   projects: {
-    addWorkspace: () => Promise<ProjectSelectionResult>;
+    addWorkspace: () => Promise<Project | null>;
+    checkTemplates: (projectDir: string) => Promise<TemplateCheckMap>;
   };
 };

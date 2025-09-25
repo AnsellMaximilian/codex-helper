@@ -1,6 +1,8 @@
-import { useState } from "react";
+import { useCallback } from "react";
+import { useNavigate, useOutletContext } from "react-router-dom";
 import { Plus } from "lucide-react";
-import type { BasePackageResult } from "../shared/types";
+import type { Project } from "../shared/types";
+import type { ProjectsOutletContext } from "./components/layout/MainLayout";
 import { Button } from "./components/ui/button";
 import {
   Card,
@@ -12,41 +14,41 @@ import {
   CardTitle,
 } from "./components/ui/card";
 
-export default function App() {
-  const [projects, setProjects] = useState<BasePackageResult[]>([]);
+const normalizeDir = (dir: string) => dir.replace(/\\/g, "/");
 
-  const handleAddWorkspace = async () => {
+export default function App() {
+  const navigate = useNavigate();
+  const { projects, upsertProject } = useOutletContext<ProjectsOutletContext>();
+
+  const handleAddWorkspace = useCallback(async () => {
     try {
       const project = await api.projects.addWorkspace();
       if (!project) return;
 
-      setProjects((prev) => {
-        const index = prev.findIndex(
-          (item) => item.dirScanned === project.dirScanned
-        );
-        if (index !== -1) {
-          const next = [...prev];
-          next[index] = project;
-          return next;
-        }
-        return [...prev, project];
-      });
+      upsertProject(project);
     } catch (error) {
       console.error("Failed to add workspace", error);
     }
-  };
+  }, [upsertProject]);
 
-  const getWorkspaceName = (project: BasePackageResult) => {
-    const normalized = project.dirScanned.replace(/\\/g, "/");
+  const getWorkspaceName = useCallback((project: Project) => {
+    const normalized = normalizeDir(project.rootDir);
     const segments = normalized.split("/").filter(Boolean);
-    return segments[segments.length - 1] ?? project.dirScanned;
-  };
+    return segments[segments.length - 1] ?? project.rootDir;
+  }, []);
 
-  const renderWarnings = (project: BasePackageResult) => {
+  const renderWarnings = useCallback((project: Project) => {
     if (project.warnings.length === 0) return "No warnings";
     const label = project.warnings.length === 1 ? "warning" : "warnings";
     return `${project.warnings.length} ${label}`;
-  };
+  }, []);
+
+  const goToDetails = useCallback(
+    (project: Project) => {
+      navigate(`/projects/${encodeURIComponent(project.id)}`);
+    },
+    [navigate]
+  );
 
   return (
     <div className="">
@@ -65,34 +67,25 @@ export default function App() {
           projects.map((project) => {
             const workspaceName = getWorkspaceName(project);
             return (
-              <Card key={project.dirScanned} className="col-span-4">
+              <Card key={project.id} className="col-span-4">
                 <CardHeader>
                   <CardTitle>{workspaceName}</CardTitle>
                   <CardDescription>
-                    <code className="italic">
-                      {project.packageName ?? "Package not detected"}
-                    </code>
+                    {project.packageName ?? "Package not detected"}
                   </CardDescription>
                   <CardAction>
-                    <Button variant="outline" disabled>
+                    <Button
+                      variant="outline"
+                      onClick={() => goToDetails(project)}
+                    >
                       Open
                     </Button>
                   </CardAction>
                 </CardHeader>
                 <CardContent className="space-y-2 text-sm text-muted-foreground">
-                  <p>
-                    Directory:{" "}
-                    <code className="italic">{project.dirScanned}</code>
-                  </p>
-                  <p>
-                    Module:{" "}
-                    <code className="italic">
-                      {project.moduleDir ?? "Not detected"}
-                    </code>
-                  </p>
-                  <p>
-                    Source: <code className="italic">{project.source}</code>
-                  </p>
+                  <p>Directory: {project.rootDir}</p>
+                  <p>Module: {project.moduleDir ?? "Not detected"}</p>
+                  <p>Source: {project.packageSource}</p>
                 </CardContent>
                 <CardFooter className="text-sm text-muted-foreground">
                   <p>{renderWarnings(project)}</p>

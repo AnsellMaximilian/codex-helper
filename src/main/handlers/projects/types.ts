@@ -13,4 +13,15 @@ export type BasePackageResult = {
   warnings: string[];
 };
 
-export type ProjectSelectionResult = BasePackageResult | null;
+export type Project = {
+  id: string;
+  name: string;
+  rootDir: string;
+  moduleDir: string | null;
+  packageName: string | null;
+  packageSource: PackageSource;
+  warnings: string[];
+  filesChecked: string[];
+};
+
+export type TemplateCheckMap = Record<string, boolean>;
