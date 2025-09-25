@@ -67,7 +67,10 @@ export default function App() {
           projects.map((project) => {
             const workspaceName = getWorkspaceName(project);
             return (
-              <Card key={project.id} className="col-span-4">
+              <Card
+                key={project.id}
+                className="col-span-12 lg:col-span-6 xl:col-span-4"
+              >
                 <CardHeader>
                   <CardTitle>{workspaceName}</CardTitle>
                   <CardDescription>

@@ -94,6 +94,7 @@ export default function MainLayout() {
           <ul className="flex gap-4 items-center">
             <Link to="/">Home</Link>
             <Link to="/dashboard">Dashboard</Link>
+            <Link to="/agents">Agents</Link>
           </ul>
           <div className="ms-auto">
             <span>Hi, {name}</span>

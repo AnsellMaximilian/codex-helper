@@ -34,4 +34,8 @@ export type AppAPI = {
       callback: (event: TemplateSyncProgress) => void
     ) => () => void;
   };
+  templates: {
+    loadAgents: () => Promise<string>;
+    saveAgents: (content: string) => Promise<void>;
+  };
 };

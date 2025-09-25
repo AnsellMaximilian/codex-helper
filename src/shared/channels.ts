@@ -12,7 +12,6 @@ export function makeChannels<T extends readonly string[]>(
   return out;
 }
 
-// Example usage
 export const CHANNELS = {
   PROJECT: makeChannels("projects", [
     "READ_FILE",
@@ -25,9 +24,13 @@ export const CHANNELS = {
     "TEMPLATE_SYNC_PROGRESS",
   ] as const),
   AUTH: makeChannels("auth", ["LOGIN", "LOGOUT", "ME"] as const),
+  TEMPLATES: makeChannels("templates", [
+    "READ_AGENTS",
+    "WRITE_AGENTS",
+  ] as const),
 } as const;
 
-// Types
 export type Channel =
   | (typeof CHANNELS.PROJECT)[keyof typeof CHANNELS.PROJECT]
-  | (typeof CHANNELS.AUTH)[keyof typeof CHANNELS.AUTH];
+  | (typeof CHANNELS.AUTH)[keyof typeof CHANNELS.AUTH]
+  | (typeof CHANNELS.TEMPLATES)[keyof typeof CHANNELS.TEMPLATES];
