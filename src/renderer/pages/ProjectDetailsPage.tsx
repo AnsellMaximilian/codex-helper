@@ -7,9 +7,19 @@ import {
   Card,
   CardContent,
   CardDescription,
+  CardFooter,
   CardHeader,
   CardTitle,
 } from "../components/ui/card";
+import { Input } from "../components/ui/input";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+  SheetTrigger,
+} from "../components/ui/sheet";
 
 function decodeProjectId(raw: string | undefined): string | null {
   if (!raw) return null;
@@ -32,6 +42,8 @@ export default function ProjectDetailsPage() {
     null
   );
   const [isCheckingTemplates, setIsCheckingTemplates] = useState(false);
+  const [isTemplateSheetOpen, setIsTemplateSheetOpen] = useState(false);
+  const [templateQuery, setTemplateQuery] = useState("");
 
   const decodedId = useMemo(() => decodeProjectId(params.projectId), [params]);
 
@@ -58,6 +70,12 @@ export default function ProjectDetailsPage() {
     runTemplateCheck();
   }, [runTemplateCheck]);
 
+  useEffect(() => {
+    if (!isTemplateSheetOpen) {
+      setTemplateQuery("");
+    }
+  }, [isTemplateSheetOpen]);
+
   if (!project) {
     return (
       <Card>
@@ -75,9 +93,29 @@ export default function ProjectDetailsPage() {
     );
   }
 
-  const templateEntries = templateStatus
-    ? Object.entries(templateStatus).sort(([a], [b]) => a.localeCompare(b))
-    : [];
+  const templateEntries = useMemo(() => {
+    if (!templateStatus) return [];
+    const projectName = project?.name ?? "";
+    return Object.entries(templateStatus)
+      .map(([relativePath, exists]) => ({
+        relativePath,
+        displayPath: `${projectName}/${relativePath}`,
+        exists,
+      }))
+      .sort((a, b) => a.displayPath.localeCompare(b.displayPath));
+  }, [project?.name, templateStatus]);
+
+  const filteredTemplateEntries = useMemo(() => {
+    if (!templateQuery) return templateEntries;
+    const q = templateQuery.toLowerCase();
+    return templateEntries.filter((entry) =>
+      entry.displayPath.toLowerCase().includes(q)
+    );
+  }, [templateEntries, templateQuery]);
+
+  const totalTemplates = templateEntries.length;
+  const totalPresent = templateEntries.filter((entry) => entry.exists).length;
+  const totalMissing = totalTemplates - totalPresent;
 
   return (
     <div className="space-y-6">
@@ -129,37 +167,90 @@ export default function ProjectDetailsPage() {
         <CardHeader>
           <CardTitle>Template Files</CardTitle>
           <CardDescription>
-            Validation of required files under{" "}
-            <code>shared/assets/templates</code>.
+            Summary of expected files copied into this workspace.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4 text-sm">
-          {templateEntries.length === 0 ? (
-            <p className="text-muted-foreground">
-              {isCheckingTemplates
-                ? "Checking template files..."
-                : "No template files were found to validate."}
-            </p>
-          ) : (
-            <ul className="space-y-2">
-              {templateEntries.map(([file, exists]) => (
-                <li
-                  key={file}
-                  className="flex items-center justify-between rounded-md border border-border px-3 py-2"
-                >
-                  <span className="truncate text-muted-foreground">
-                    {formatPath(file)}
-                  </span>
-                  <span
-                    className={exists ? "text-emerald-600" : "text-destructive"}
-                  >
-                    {exists ? "Present" : "Missing"}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          )}
+        <CardContent className="grid gap-2 text-sm text-muted-foreground">
+          <p>
+            Total templates:{" "}
+            {templateStatus === null ? "Checking..." : totalTemplates}
+          </p>
+          <p className="text-emerald-600">
+            Present: {templateStatus === null ? "-" : totalPresent}
+          </p>
+          <p className="text-destructive">
+            Missing: {templateStatus === null ? "-" : totalMissing}
+          </p>
         </CardContent>
+        <CardFooter>
+          <Sheet
+            open={isTemplateSheetOpen}
+            onOpenChange={setIsTemplateSheetOpen}
+          >
+            <SheetTrigger asChild>
+              <Button disabled={templateStatus === null}>
+                View template files
+              </Button>
+            </SheetTrigger>
+            <SheetContent side="right" className="sm:max-w-lg">
+              <SheetHeader>
+                <SheetTitle>Template file checks</SheetTitle>
+                <SheetDescription>
+                  Search and review template files validated under this project.
+                </SheetDescription>
+              </SheetHeader>
+              <div className="flex flex-col gap-4 px-4 pb-4">
+                <Input
+                  value={templateQuery}
+                  onChange={(event) => setTemplateQuery(event.target.value)}
+                  placeholder="Search files"
+                />
+                <div className="text-sm text-muted-foreground">
+                  Showing {filteredTemplateEntries.length} of{" "}
+                  {templateEntries.length} files
+                </div>
+                <div className="h-[60vh] overflow-y-auto pr-2">
+                  {templateStatus === null ? (
+                    <p className="text-muted-foreground">
+                      {isCheckingTemplates
+                        ? "Checking template files..."
+                        : "No results yet."}
+                    </p>
+                  ) : filteredTemplateEntries.length === 0 ? (
+                    <p className="text-muted-foreground">
+                      No files match your search.
+                    </p>
+                  ) : (
+                    <ul className="space-y-2">
+                      {filteredTemplateEntries.map((entry) => (
+                        <li
+                          key={entry.relativePath}
+                          className="flex items-center justify-between rounded-md border border-border px-3 py-2 text-sm"
+                        >
+                          <span className="truncate text-muted-foreground">
+                            {formatPath(entry.displayPath)}
+                          </span>
+                          <span
+                            className={
+                              entry.exists
+                                ? "text-emerald-600"
+                                : "text-destructive"
+                            }
+                          >
+                            {entry.exists ? "Present" : "Missing"}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  Paths are relative to the project root: {project.name}/
+                </div>
+              </div>
+            </SheetContent>
+          </Sheet>
+        </CardFooter>
       </Card>
 
       <Card>

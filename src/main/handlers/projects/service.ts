@@ -296,11 +296,10 @@ export async function checkProjectTemplates(
     return {};
   }
 
-  const labelRoot = "shared/assets/templates";
   const result: TemplateCheckMap = {};
 
   for (const rel of templatePaths) {
-    const key = path.posix.join(labelRoot, rel);
+    const key = rel;
     const target = path.join(projectDir, ...rel.split("/"));
     // eslint-disable-next-line no-await-in-loop
     result[key] = await exists(target);
