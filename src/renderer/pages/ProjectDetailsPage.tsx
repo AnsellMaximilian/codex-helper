@@ -43,7 +43,7 @@ function formatPath(p: string) {
 export default function ProjectDetailsPage() {
   const params = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { projects } = useOutletContext<ProjectsOutletContext>();
+  const { projects, removeProject } = useOutletContext<ProjectsOutletContext>();
   const [templateStatus, setTemplateStatus] = useState<TemplateCheckMap | null>(
     null
   );
@@ -54,6 +54,7 @@ export default function ProjectDetailsPage() {
   const [isSyncingAll, setIsSyncingAll] = useState(false);
   const [fileSyncing, setFileSyncing] = useState<Record<string, boolean>>({});
   const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
+  const [isDeleting, setIsDeleting] = useState(false);
 
   const decodedId = useMemo(() => decodeProjectId(params.projectId), [params]);
 
@@ -207,6 +208,28 @@ export default function ProjectDetailsPage() {
     },
     [project]
   );
+  const handleDeleteProject = useCallback(async () => {
+    if (!project) return;
+
+    const confirmed = window.confirm(
+      "Delete " + project.name + "? This cannot be undone."
+    );
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const removed = await removeProject(project.id);
+      if (removed) {
+        navigate("/");
+      } else {
+        console.warn("Project removal was not confirmed by the main process.");
+      }
+    } catch (error) {
+      console.error("Failed to delete project", error);
+    } finally {
+      setIsDeleting(false);
+    }
+  }, [navigate, project, removeProject]);
 
   if (!project) {
     return (
@@ -274,6 +297,13 @@ export default function ProjectDetailsPage() {
           </Button>
           <Button onClick={runTemplateCheck} disabled={isCheckingTemplates}>
             {isCheckingTemplates ? "Checking..." : "Recheck templates"}
+          </Button>
+          <Button
+            variant="destructive"
+            onClick={handleDeleteProject}
+            disabled={isDeleting}
+          >
+            {isDeleting ? "Deleting..." : "Delete project"}
           </Button>
         </div>
       </div>

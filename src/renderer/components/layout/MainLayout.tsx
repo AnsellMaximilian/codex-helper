@@ -1,43 +1,90 @@
+import { ReactNode, useCallback, useEffect, useState } from "react";
+import { NavLink, Outlet, useLoaderData, useNavigation } from "react-router-dom";
 import { Project } from "../../../shared/types";
-import { ReactNode, useCallback, useState } from "react";
-import {
-  Outlet,
-  NavLink,
-  useLoaderData,
-  useNavigation,
-} from "react-router-dom";
 
 export type ProjectsOutletContext = {
   projects: Project[];
   upsertProject: (project: Project) => void;
+  removeProject: (projectId: string) => Promise<boolean>;
+  reloadProjects: () => Promise<void>;
 };
 
-const Link = ({ to, children }: { to: string; children: ReactNode }) => {
+type LinkProps = {
+  to: string;
+  children: ReactNode;
+};
+
+const Link = ({ to, children }: LinkProps) => {
   return (
-    <NavLink
-      to={to}
-      className={({ isActive }) => (isActive ? "underline" : "")}
-    >
+    <NavLink to={to} className={({ isActive }) => (isActive ? "underline" : "")}>
       {children}
     </NavLink>
   );
 };
+
+const normalizePackageName = (pkg: string | null | undefined) =>
+  pkg?.trim().toLowerCase() ?? null;
 
 export default function MainLayout() {
   const { name } = useLoaderData() as { name: string };
   const nav = useNavigation();
   const [projects, setProjects] = useState<Project[]>([]);
 
+  const reloadProjects = useCallback(async () => {
+    try {
+      const storedProjects = await api.projects.getAll();
+      setProjects(storedProjects);
+    } catch (error) {
+      console.error("Failed to load persisted projects", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    void reloadProjects();
+  }, [reloadProjects]);
+
   const upsertProject = useCallback((project: Project) => {
     setProjects((prev) => {
-      const existingIndex = prev.findIndex((item) => item.id === project.id);
-      if (existingIndex !== -1) {
-        const next = [...prev];
-        next[existingIndex] = project;
+      const next = [...prev];
+      const idIndex = next.findIndex((item) => item.id === project.id);
+      const pkg = normalizePackageName(project.packageName);
+      const packageIndex =
+        pkg !== null
+          ? next.findIndex(
+              (item) => normalizePackageName(item.packageName) === pkg
+            )
+          : -1;
+
+      if (packageIndex !== -1 && packageIndex !== idIndex) {
+        next[packageIndex] = project;
+        if (idIndex !== -1) {
+          next.splice(idIndex, 1);
+        }
         return next;
       }
-      return [...prev, project];
+
+      if (idIndex !== -1) {
+        next[idIndex] = project;
+        return next;
+      }
+
+      next.push(project);
+      return next;
     });
+  }, []);
+
+  const removeProject = useCallback(async (projectId: string) => {
+    try {
+      const removed = await api.projects.remove(projectId);
+      if (!removed) {
+        return false;
+      }
+      setProjects((prev) => prev.filter((project) => project.id !== projectId));
+      return true;
+    } catch (error) {
+      console.error("Failed to remove project", error);
+      return false;
+    }
   }, []);
 
   return (
@@ -57,7 +104,14 @@ export default function MainLayout() {
       {nav.state === "loading" ? <p>Loading...</p> : null}
 
       <main className="p-4">
-        <Outlet context={{ projects, upsertProject }} />
+        <Outlet
+          context={{
+            projects,
+            upsertProject,
+            removeProject,
+            reloadProjects,
+          }}
+        />
       </main>
     </div>
   );

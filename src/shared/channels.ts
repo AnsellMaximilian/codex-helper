@@ -18,6 +18,8 @@ export const CHANNELS = {
     "READ_FILE",
     "WRITE_FILE",
     "ADD_WORKSPACE",
+    "GET_ALL",
+    "REMOVE",
     "CHECK_TEMPLATES",
     "SYNC_TEMPLATES",
     "TEMPLATE_SYNC_PROGRESS",

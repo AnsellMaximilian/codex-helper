@@ -24,6 +24,8 @@ export type AppAPI = {
   };
   projects: {
     addWorkspace: () => Promise<Project | null>;
+    getAll: () => Promise<Project[]>;
+    remove: (projectId: string) => Promise<boolean>;
     checkTemplates: (projectDir: string) => Promise<TemplateCheckMap>;
     syncTemplates: (
       request: TemplateSyncRequest
