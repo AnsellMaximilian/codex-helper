@@ -1,0 +1,115 @@
+package {{base_package}}.core.di
+import {{base_package}}.BuildConfig
+import {{base_package}}.core.SharedPrefsManager
+import com.fasterxml.jackson.databind.DeserializationFeature
+import com.fasterxml.jackson.databind.ObjectMapper
+import dagger.Module
+import dagger.Provides
+import dagger.assisted.Assisted
+import dagger.hilt.InstallIn
+import dagger.hilt.components.SingletonComponent
+import okhttp3.Authenticator
+import okhttp3.Interceptor
+import okhttp3.OkHttpClient
+import okhttp3.logging.HttpLoggingInterceptor
+import retrofit2.Retrofit
+import retrofit2.converter.jackson.JacksonConverterFactory
+import java.security.KeyStore
+import java.security.SecureRandom
+import java.util.concurrent.TimeUnit
+import javax.inject.Singleton
+import javax.net.ssl.SSLContext
+import javax.net.ssl.TrustManager
+import javax.net.ssl.TrustManagerFactory
+import javax.net.ssl.X509TrustManager
+
+
+@Module
+@InstallIn(SingletonComponent::class)
+object NetworkModule {
+    @Provides
+    fun createJacksonObjectMapper(): ObjectMapper {
+        val objectMapper = ObjectMapper()
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, true)
+        return objectMapper
+    }
+
+    @Provides
+    fun createRetrofit(
+        okHttpClient: OkHttpClient,
+        objectMapper: ObjectMapper
+    ): Retrofit {
+        return Retrofit.Builder()
+            .baseUrl(BuildConfig.BASE_URL)
+            .addConverterFactory(objectMapper.let { JacksonConverterFactory.create(it) })
+            .client(okHttpClient)
+            .build()
+    }
+
+    @Provides
+    @Singleton
+    fun provideOkHttpClient(
+        logging: HttpLoggingInterceptor,
+        sharedPrefs: SharedPrefsManager
+    ): OkHttpClient {
+        // 1. Ambil TrustManager default yang valid
+        val tmf = TrustManagerFactory.getInstance(TrustManagerFactory.getDefaultAlgorithm())
+        tmf.init(null as KeyStore?)
+        val trustManagers = tmf.trustManagers
+        val trustManager = trustManagers
+            .filterIsInstance<X509TrustManager>()
+            .firstOrNull()
+            ?: throw IllegalStateException("No X509TrustManager found")
+
+        // 2. Buat SSLContext dengan protokol TLS
+        val sslContext = SSLContext.getInstance("TLS")
+        sslContext.init(null, arrayOf<TrustManager>(trustManager), SecureRandom())
+
+        // 3. Bangun OkHttpClient
+        return OkHttpClient.Builder()
+            .addInterceptor(logging)
+
+            // Trust all certs via our TrustManager (note: ini *mengabaikan* certificate errors)
+            .sslSocketFactory(sslContext.socketFactory, trustManager)
+            .hostnameVerifier { _, _ -> true }
+
+            // Re-authenticator: jika 401, retry dengan token baru
+            .authenticator(Authenticator { _, response ->
+                if (response.code == 401) {
+                    response.request.newBuilder()
+                        .header(
+                            "Authorization",
+                            sharedPrefs.getSession().token.toString()
+                        )
+                        .build()
+                } else null
+            })
+
+            // Tambah header no-cache ke setiap request
+            .addInterceptor(Interceptor { chain ->
+                val req = chain.request()
+                    .newBuilder()
+                    .header("Cache-Control", "no-cache")
+                    .build()
+                chain.proceed(req)
+            })
+
+
+            // Timeout
+            .connectTimeout(60, TimeUnit.SECONDS)
+            .writeTimeout(60, TimeUnit.SECONDS)
+            .readTimeout(60, TimeUnit.SECONDS)
+            .build()
+    }
+
+
+    @Provides
+    fun createLoggingInterceptor(): HttpLoggingInterceptor {
+        val loggingInterceptor = HttpLoggingInterceptor()
+        if (BuildConfig.DEBUG) {
+            loggingInterceptor.setLevel(HttpLoggingInterceptor.Level.BODY)
+        }
+        return loggingInterceptor
+    }
+
+}

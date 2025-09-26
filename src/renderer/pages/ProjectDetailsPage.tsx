@@ -4,6 +4,7 @@ import type {
   TemplateCheckMap,
   TemplateSyncMode,
   TemplateSyncProgress,
+  AndroidTemplateSummary,
 } from "../../shared/types";
 import type { ProjectsOutletContext } from "../components/layout/MainLayout";
 import { Button } from "../components/ui/button";
@@ -43,7 +44,7 @@ function formatPath(p: string) {
 export default function ProjectDetailsPage() {
   const params = useParams<{ projectId: string }>();
   const navigate = useNavigate();
-  const { projects, removeProject } = useOutletContext<ProjectsOutletContext>();
+  const { projects, removeProject, upsertProject } = useOutletContext<ProjectsOutletContext>();
   const [templateStatus, setTemplateStatus] = useState<TemplateCheckMap | null>(
     null
   );
@@ -55,6 +56,14 @@ export default function ProjectDetailsPage() {
   const [fileSyncing, setFileSyncing] = useState<Record<string, boolean>>({});
   const [fileErrors, setFileErrors] = useState<Record<string, string>>({});
   const [isDeleting, setIsDeleting] = useState(false);
+  const [androidSummary, setAndroidSummary] =
+    useState<AndroidTemplateSummary | null>(null);
+  const [isCheckingAndroidTemplates, setIsCheckingAndroidTemplates] =
+    useState(false);
+  const [isGeneratingAndroidTemplates, setIsGeneratingAndroidTemplates] =
+    useState(false);
+  const [androidTemplateError, setAndroidTemplateError] =
+    useState<string | null>(null);
 
   const decodedId = useMemo(() => decodeProjectId(params.projectId), [params]);
 
@@ -64,6 +73,7 @@ export default function ProjectDetailsPage() {
   }, [decodedId, projects]);
 
   const projectRoot = project?.rootDir;
+  const projectId = project?.id ?? null;
 
   const runTemplateCheck = useCallback(async () => {
     if (!project) return;
@@ -145,6 +155,49 @@ export default function ProjectDetailsPage() {
       unsubscribe();
     };
   }, [projectRoot]);
+
+  const refreshAndroidTemplates = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      setAndroidTemplateError(null);
+      setIsCheckingAndroidTemplates(true);
+      const result = await api.projects.checkAndroidTemplates(projectId);
+      setAndroidSummary(result.summary);
+      upsertProject(result.project);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error ?? "Error");
+      setAndroidTemplateError(message);
+    } finally {
+      setIsCheckingAndroidTemplates(false);
+    }
+  }, [projectId, upsertProject]);
+
+  const generateAndroidTemplates = useCallback(async () => {
+    if (!projectId) return;
+    try {
+      setAndroidTemplateError(null);
+      setIsGeneratingAndroidTemplates(true);
+      const result = await api.projects.generateAndroidTemplates(projectId);
+      setAndroidSummary(result.summary);
+      upsertProject(result.project);
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : String(error ?? "Error");
+      setAndroidTemplateError(message);
+    } finally {
+      setIsGeneratingAndroidTemplates(false);
+    }
+  }, [projectId, upsertProject]);
+
+  useEffect(() => {
+    if (!projectId) {
+      setAndroidSummary(null);
+      setAndroidTemplateError(null);
+      return;
+    }
+    void refreshAndroidTemplates();
+  }, [projectId, refreshAndroidTemplates]);
 
   const syncTemplates = useCallback(
     async (mode: TemplateSyncMode, files?: string[]) => {
@@ -248,6 +301,18 @@ export default function ProjectDetailsPage() {
     );
   }
 
+  const androidStatusMeta = useMemo(() => {
+    const status = project?.androidTemplateStatus ?? "notStarted";
+    switch (status) {
+      case "ready":
+        return { label: "Ready", className: "text-emerald-600" };
+      case "incomplete":
+        return { label: "Needs attention", className: "text-amber-600" };
+      default:
+        return { label: "Not generated", className: "text-muted-foreground" };
+    }
+  }, [project?.androidTemplateStatus]);
+
   const templateEntries = useMemo(() => {
     if (!templateStatus) return [];
     const projectName = project?.name ?? "";
@@ -281,6 +346,17 @@ export default function ProjectDetailsPage() {
     isSyncingMissing ||
     isSyncingAll;
   const disableAllButton = templateDataUnavailable || isSyncingAll;
+
+  const androidTotalDisplay =
+    androidSummary === null
+      ? isCheckingAndroidTemplates
+        ? "Checking..."
+        : "-"
+      : androidSummary.total;
+  const androidPresentDisplay =
+    androidSummary === null ? "-" : androidSummary.present;
+  const androidMissingDisplay =
+    androidSummary === null ? "-" : androidSummary.missing;
 
   return (
     <div className="space-y-6">
@@ -333,6 +409,62 @@ export default function ProjectDetailsPage() {
             <p>No warnings detected.</p>
           )}
         </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Android Starter Templates</CardTitle>
+          <CardDescription>
+            Generate Android boilerplate files for this workspace.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-2 text-sm text-muted-foreground">
+          <div className="flex items-center justify-between text-sm">
+            <span>Status</span>
+            <span className={`font-medium ${androidStatusMeta.className}`}>
+              {androidStatusMeta.label}
+            </span>
+          </div>
+          <p>Total templates: {androidTotalDisplay}</p>
+          <p className="text-emerald-600">
+            Present: {androidPresentDisplay}
+          </p>
+          <p className="text-destructive">
+            Missing: {androidMissingDisplay}
+          </p>
+          {androidTemplateError ? (
+            <p className="text-destructive text-sm">
+              {androidTemplateError}
+            </p>
+          ) : null}
+        </CardContent>
+        <CardFooter className="flex flex-wrap gap-2">
+          <Button
+            onClick={generateAndroidTemplates}
+            disabled={
+              !projectId ||
+              isGeneratingAndroidTemplates ||
+              isCheckingAndroidTemplates
+            }
+          >
+            {isGeneratingAndroidTemplates
+              ? "Generating templates..."
+              : "Generate templates"}
+          </Button>
+          <Button
+            variant="outline"
+            onClick={refreshAndroidTemplates}
+            disabled={
+              !projectId ||
+              isCheckingAndroidTemplates ||
+              isGeneratingAndroidTemplates
+            }
+          >
+            {isCheckingAndroidTemplates
+              ? "Checking status..."
+              : "Recheck status"}
+          </Button>
+        </CardFooter>
       </Card>
 
       <Card>

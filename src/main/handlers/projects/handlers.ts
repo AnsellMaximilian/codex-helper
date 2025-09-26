@@ -1,6 +1,12 @@
 import { ipcMain } from "electron";
 import projectStore from "../../store/projectStore";
-import { checkProjectTemplates, selectWorkspace, syncTemplates } from "./service";
+import {
+  checkProjectTemplates,
+  checkAndroidProjectTemplates,
+  generateAndroidProjectTemplates,
+  selectWorkspace,
+  syncTemplates,
+} from "./service";
 import { CHANNELS } from "../../../shared/channels";
 import type { TemplateSyncRequest } from "./types";
 
@@ -42,4 +48,54 @@ export default function projectFeatuerHandlers() {
       });
     }
   );
+  ipcMain.handle(
+    CHANNELS.PROJECT.CHECK_ANDROID_TEMPLATES,
+    async (_event, projectId: unknown) => {
+      if (typeof projectId !== "string" || projectId.length === 0) {
+        throw new Error("Invalid project id for Android template status.");
+      }
+      const project = projectStore
+        .getAll()
+        .find((item) => item.id === projectId);
+      if (!project) {
+        throw new Error("Project could not be found.");
+      }
+      const summary = await checkAndroidProjectTemplates(project);
+      const { project: storedProject } = projectStore.upsert({
+        ...project,
+        androidTemplateStatus: summary.status,
+      });
+      return {
+        summary,
+        written: 0,
+        project: storedProject,
+      };
+    }
+  );
+
+  ipcMain.handle(
+    CHANNELS.PROJECT.GENERATE_ANDROID_TEMPLATES,
+    async (_event, projectId: unknown) => {
+      if (typeof projectId !== "string" || projectId.length === 0) {
+        throw new Error("Invalid project id for Android template generation.");
+      }
+      const project = projectStore
+        .getAll()
+        .find((item) => item.id === projectId);
+      if (!project) {
+        throw new Error("Project could not be found.");
+      }
+      const { written, summary } = await generateAndroidProjectTemplates(project);
+      const { project: storedProject } = projectStore.upsert({
+        ...project,
+        androidTemplateStatus: summary.status,
+      });
+      return {
+        summary,
+        written,
+        project: storedProject,
+      };
+    }
+  );
+
 }

@@ -1,0 +1,46 @@
+package {{base_package}}.core.navigation
+
+import androidx.navigation.NavController
+import java.net.URLEncoder
+import java.nio.charset.StandardCharsets
+import javax.inject.Inject
+
+interface NavigationManager {
+    fun navigate(route: String)
+    fun popBackStack()
+    fun navigateWithArgs(route: String, vararg args: Pair<String, Any>)
+}
+
+class NavigationManagerImpl @Inject constructor() : NavigationManager {
+    private var navController: NavController? = null
+
+    fun setNavController(navController: NavController) {
+        this.navController = navController
+    }
+
+    override fun navigate(route: String) {
+        navController?.navigate(route)
+    }
+
+    override fun popBackStack() {
+        navController?.popBackStack()
+    }
+
+    override fun navigateWithArgs(route: String, vararg args: Pair<String, Any>) {
+        navController?.navigate(route.addArguments(*args))
+    }
+
+}
+
+fun String.addArguments(vararg args: Pair<String, Any>): String {
+    return buildString {
+        append(this@addArguments)
+        args.forEachIndexed { index, (key, value) ->
+            append(if (index == 0) "?" else "&")
+            append("$key=${value.toString().urlEncode()}")
+        }
+    }
+}
+
+fun String.urlEncode(): String =
+    URLEncoder.encode(this, StandardCharsets.UTF_8.toString())

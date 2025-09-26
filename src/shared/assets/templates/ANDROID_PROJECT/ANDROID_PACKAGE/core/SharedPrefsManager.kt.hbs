@@ -1,0 +1,63 @@
+package {{base_package}}.core
+
+import android.content.Context
+import android.content.SharedPreferences
+import com.fasterxml.jackson.core.JsonProcessingException
+import com.fasterxml.jackson.databind.ObjectMapper
+import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.IOException
+import javax.inject.Inject
+import javax.inject.Singleton
+import androidx.core.content.edit
+
+class SessionEntity(
+    var internalToken: String? = null,
+    var codeVerifier: String? = null,
+    var requestId: String? = null,
+    var authCode: String? = null,
+    var sessionAuthCode: String? = null,
+    var token: String? = null,
+    var refreshToken: String? = null,
+    var isLoggedIn: Boolean = false,
+) {
+}
+
+
+@Singleton
+class SharedPrefsManager @Inject constructor(
+    @ApplicationContext context: Context
+) {
+    private val prefs = context.getSharedPreferences("main_prefs", Context.MODE_PRIVATE)
+
+    fun clearAll() {
+        prefs.edit() {
+            clear()
+        }
+    }
+
+    fun setSession(sessionEntity: SessionEntity?) {
+        prefs.edit() {
+            try {
+                putString(
+                    "session",
+                    ObjectMapper().writeValueAsString(sessionEntity)
+                )
+            } catch (e: JsonProcessingException) {
+                // do nothing
+            }
+        }
+    }
+
+
+    fun getSession(): SessionEntity {
+        val sessionInString: String = prefs.getString("session", "") ?: ""
+        return try {
+            ObjectMapper().readValue(
+                sessionInString,
+                SessionEntity::class.java
+            )
+        } catch (e: IOException) {
+            SessionEntity()
+        }
+    }
+}

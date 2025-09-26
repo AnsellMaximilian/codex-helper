@@ -1,0 +1,33 @@
+package {{base_package}}.core.di
+
+import android.content.Context
+import dagger.Module
+import dagger.Provides
+import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
+import dagger.hilt.components.SingletonComponent
+import kotlinx.coroutines.CoroutineDispatcher
+import kotlinx.coroutines.Dispatchers
+import javax.inject.Singleton
+import {{base_package}}.core.navigation.NavigationManager
+import {{base_package}}.core.navigation.NavigationManagerImpl
+
+
+@Module
+@InstallIn(SingletonComponent::class)
+object AppModule {
+
+    // Provides application context
+    @Provides
+    @Singleton
+    fun provideContext(@ApplicationContext context: Context): Context = context
+
+    // Provides default CoroutineDispatcher (for use cases/repositories)
+    @Provides
+    @Singleton
+    fun provideDefaultDispatcher(): CoroutineDispatcher = Dispatchers.IO
+
+    @Provides
+    @Singleton
+    fun provideNavigationManager(): NavigationManager = NavigationManagerImpl()
+}

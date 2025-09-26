@@ -21,6 +21,8 @@ export const CHANNELS = {
     "REMOVE",
     "CHECK_TEMPLATES",
     "SYNC_TEMPLATES",
+    "CHECK_ANDROID_TEMPLATES",
+    "GENERATE_ANDROID_TEMPLATES",
     "TEMPLATE_SYNC_PROGRESS",
   ] as const),
   AUTH: makeChannels("auth", ["LOGIN", "LOGOUT", "ME"] as const),

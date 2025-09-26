@@ -1,6 +1,9 @@
 export type {
   BasePackageResult,
   Project,
+  AndroidTemplateStatus,
+  AndroidTemplateSummary,
+  AndroidTemplateActionResult,
   TemplateCheckMap,
   TemplateSyncMode,
   TemplateSyncProgress,
@@ -10,6 +13,7 @@ export type {
 
 import type {
   Project,
+  AndroidTemplateActionResult,
   TemplateCheckMap,
   TemplateSyncProgress,
   TemplateSyncRequest,
@@ -30,6 +34,12 @@ export type AppAPI = {
     syncTemplates: (
       request: TemplateSyncRequest
     ) => Promise<TemplateSyncResult>;
+    checkAndroidTemplates: (
+      projectId: string
+    ) => Promise<AndroidTemplateActionResult>;
+    generateAndroidTemplates: (
+      projectId: string
+    ) => Promise<AndroidTemplateActionResult>;
     onTemplateSyncProgress: (
       callback: (event: TemplateSyncProgress) => void
     ) => () => void;

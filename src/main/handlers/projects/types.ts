@@ -13,6 +13,8 @@ export type BasePackageResult = {
   warnings: string[];
 };
 
+export type AndroidTemplateStatus = "notStarted" | "incomplete" | "ready";
+
 export type Project = {
   id: string;
   name: string;
@@ -20,8 +22,22 @@ export type Project = {
   moduleDir: string | null;
   packageName: string | null;
   packageSource: PackageSource;
+  androidTemplateStatus: AndroidTemplateStatus;
   warnings: string[];
   filesChecked: string[];
+};
+
+export type AndroidTemplateSummary = {
+  status: AndroidTemplateStatus;
+  total: number;
+  present: number;
+  missing: number;
+};
+
+export type AndroidTemplateActionResult = {
+  summary: AndroidTemplateSummary;
+  written: number;
+  project: Project;
 };
 
 export type TemplateCheckMap = Record<string, boolean>;

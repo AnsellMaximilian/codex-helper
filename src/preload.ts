@@ -2,11 +2,8 @@
 // https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
 
 import { contextBridge, ipcRenderer } from "electron";
+import type { TemplateSyncProgress, TemplateSyncRequest } from "./shared/types";
 import { AppAPI } from "./shared/types";
-import type {
-  TemplateSyncProgress,
-  TemplateSyncRequest,
-} from "./shared/types";
 import { CHANNELS } from "./shared/channels";
 
 const api: AppAPI = {
@@ -24,6 +21,13 @@ const api: AppAPI = {
       ipcRenderer.invoke(CHANNELS.PROJECT.CHECK_TEMPLATES, projectDir),
     syncTemplates: (request: TemplateSyncRequest) =>
       ipcRenderer.invoke(CHANNELS.PROJECT.SYNC_TEMPLATES, request),
+    checkAndroidTemplates: (projectId: string) =>
+      ipcRenderer.invoke(CHANNELS.PROJECT.CHECK_ANDROID_TEMPLATES, projectId),
+    generateAndroidTemplates: (projectId: string) =>
+      ipcRenderer.invoke(
+        CHANNELS.PROJECT.GENERATE_ANDROID_TEMPLATES,
+        projectId
+      ),
     onTemplateSyncProgress: (callback) => {
       const listener = (
         _event: Electron.IpcRendererEvent,

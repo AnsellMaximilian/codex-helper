@@ -1,5 +1,7 @@
 import Store from "electron-store";
-import type { Project } from "../handlers/projects/types";
+import type { Project, AndroidTemplateStatus } from "../handlers/projects/types";
+
+const DEFAULT_ANDROID_TEMPLATE_STATUS: AndroidTemplateStatus = "notStarted";
 
 type ProjectStoreSchema = {
   projects: Project[];
@@ -26,11 +28,19 @@ class ProjectStore {
 
   getAll(): Project[] {
     const projects = this.store.get("projects");
-    return Array.isArray(projects) ? [...projects] : [];
+    return Array.isArray(projects)
+      ? projects.map((project) => this.applyDefaults(project))
+      : [];
   }
 
   private setAll(projects: Project[]): void {
-    this.store.set("projects", projects);
+    this.store.set("projects", projects.map((project) => this.applyDefaults(project)));
+  }
+
+  private applyDefaults(project: Project): Project {
+    const status = (project as Partial<Project>).androidTemplateStatus
+      ?? DEFAULT_ANDROID_TEMPLATE_STATUS;
+    return { ...project, androidTemplateStatus: status };
   }
 
   private migrate(): void {
@@ -50,10 +60,11 @@ class ProjectStore {
     const idToIndex = new Map<string, number>();
 
     projects.forEach((project) => {
-      const normalizedPackage = normalizePackageName(project.packageName);
-      const idIndex = idToIndex.get(project.id);
+      const normalizedProject = this.applyDefaults(project);
+      const normalizedPackage = normalizePackageName(normalizedProject.packageName);
+      const idIndex = idToIndex.get(normalizedProject.id);
       if (typeof idIndex === "number") {
-        result[idIndex] = project;
+        result[idIndex] = normalizedProject;
         if (normalizedPackage) {
           packageToIndex.set(normalizedPackage, idIndex);
         }
@@ -64,7 +75,7 @@ class ProjectStore {
         const pkgIndex = packageToIndex.get(normalizedPackage);
         if (typeof pkgIndex === "number") {
           const mergedProject: Project = {
-            ...project,
+            ...normalizedProject,
             id: result[pkgIndex].id,
           };
           result[pkgIndex] = mergedProject;
@@ -74,8 +85,8 @@ class ProjectStore {
         }
       }
 
-      const nextIndex = result.push(project) - 1;
-      idToIndex.set(project.id, nextIndex);
+      const nextIndex = result.push(normalizedProject) - 1;
+      idToIndex.set(normalizedProject.id, nextIndex);
       if (normalizedPackage) {
         packageToIndex.set(normalizedPackage, nextIndex);
       }
@@ -91,9 +102,10 @@ class ProjectStore {
   } {
     const projects = this.getAll();
     const next = [...projects];
+    const normalizedProject = this.applyDefaults(project);
 
-    const idIndex = next.findIndex((item) => item.id === project.id);
-    const normalizedNewPackage = normalizePackageName(project.packageName);
+    const idIndex = next.findIndex((item) => item.id === normalizedProject.id);
+    const normalizedNewPackage = normalizePackageName(normalizedProject.packageName);
     const packageIndex =
       normalizedNewPackage !== null
         ? next.findIndex(
@@ -103,7 +115,7 @@ class ProjectStore {
 
     if (packageIndex !== -1 && packageIndex !== idIndex) {
       const mergedProject: Project = {
-        ...project,
+        ...normalizedProject,
         id: next[packageIndex].id,
       };
       next[packageIndex] = mergedProject;
@@ -119,19 +131,19 @@ class ProjectStore {
     }
 
     if (idIndex !== -1) {
-      next[idIndex] = project;
+      next[idIndex] = normalizedProject;
       this.setAll(next);
       return {
-        project,
+        project: normalizedProject,
         wasInserted: false,
         replacedByPackage: false,
       };
     }
 
-    next.push(project);
+    next.push(normalizedProject);
     this.setAll(next);
     return {
-      project,
+      project: normalizedProject,
       wasInserted: true,
       replacedByPackage: false,
     };

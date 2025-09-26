@@ -1,0 +1,59 @@
+package {{base_package}}
+
+import android.os.Bundle
+import androidx.activity.ComponentActivity
+import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Scaffold
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Modifier
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.rememberNavController
+import {{base_package}}.core.navigation.NavGraph
+import {{base_package}}.core.navigation.NavigationManager
+import {{base_package}}.core.navigation.NavigationManagerImpl
+
+import com.example.{{last_package_word}}.ui.theme.{{last_package_word_capitalized}}Theme
+import dagger.hilt.android.AndroidEntryPoint
+
+import dagger.hilt.android.migration.CustomInjection.inject
+import javax.inject.Inject
+
+
+@AndroidEntryPoint
+class MainActivity : ComponentActivity() {
+    @Inject
+    lateinit var navManager: NavigationManager
+
+    private lateinit var navController: NavHostController
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
+        setContent {
+            {{last_package_word_capitalized}}Theme {
+                navController = rememberNavController()
+                LaunchedEffect(navController) {
+                    (navManager as NavigationManagerImpl).setNavController(navController)
+                }
+
+
+
+                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
+                    Box(modifier = Modifier
+                        .fillMaxSize()
+                        .padding(innerPadding)
+                    ) {
+                        NavGraph(
+                            navController = navController,
+                            navManager = navManager
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
