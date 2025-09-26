@@ -10,6 +10,7 @@
 - Screens should take their respective view model as a parameter
 
 #### View Models
+
 - Each view model should have the `@HiltViewModel` annotation
 - Provide view models with the appropriate repositories (injection)
 
@@ -31,10 +32,12 @@
 ### Network Interaction
 
 #### DTOs
+
 - DTOs for mapping return and request objects are placed inside the `data/remote/dto` folder/package
 - Always ignore unknown properties
 
 #### API interfaces
+
 - API interfaces are placed inside `data/remote/api`. Create an API interface based on a logical group separation
 - Name them based on the logical resource group. For example: `PostApi`
 - Each API interface should be placed inside a file of the same name. Example: `PostApi` interface should be placed inside `PostApi.kt`
@@ -42,15 +45,16 @@
 #### Interpreting Curls
 
 - Sometimes you may get curls as an input. Whenever this happens, ignore the base domain and focus on the parts after it, such as path and query strings/params
-- Try to logically group it as a resource based on the path. 
+- Try to logically group it as a resource based on the path.
 - From these curls, you should create the appropriate DTOs and API interfaces
 - But check if any existing files for both DTOs and API of the same logical resource group exist. And decide whether to create new files or add/update existing ones
 
 ### Local Database
+
 - Project is already setup with room
 - Place database related injections under `core/di/DatabaseModule.kt`
 - Place DAOs under `data/local/dao`
-- Place  entities under `data/local/entity`
+- Place entities under `data/local/entity`
 - Place the database and appropriate migrations under `data/local/database`
 - Name the database according to the package name separated with underscore instead of dot. Example: `app_database`
 
@@ -68,3 +72,7 @@
 - The project is powered by dagger hilt
 - Each logical resource group should have a module
 - These modules should provide the respective APIs, repository implementations, etc.
+
+### Models
+
+- If necessary, place domain models inside `domain/model` and the appropriate mappers from entities or dtos, etc.
